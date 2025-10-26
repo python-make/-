@@ -1,0 +1,23 @@
+import maya.cmds as cmds
+
+#標準UIの起動を避けるための関数
+def open_vex_paint_cot():
+    cmds.artUserPaintCtx("myPaintVertexCtx")
+    if not cmds.artUserPaintCtx("myPaintVertexCtx", exists=True):
+        cmds.artAttrPaintVertexCtx("myPaintVertexCtx", opacity=1.0)
+    
+    
+
+def scatter_paint_tool_ui():
+    #もしウィンドウがすでにあったら削除
+    if cmds.window("scatter_paint_tool", exists=True):
+        cmds.deleteUI("scatter_paint_tool")
+    #ウィンドウ作成
+    window = cmds.window("scatter_paint_tool", title="Scatter Paint Tool", widthHeight=(400,300))
+    #レイアウト作成
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=10, columnAlign="center")
+    
+    cmds.button(label="test" )
+    
+    cmds.showWindow(window)
+scatter_paint_tool_ui()

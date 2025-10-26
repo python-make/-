@@ -2,22 +2,60 @@ import maya.cmds as cmds
 
 #標準UIの起動を避けるための関数
 def open_vex_paint_cot():
-    cmds.artUserPaintCtx("myPaintVertexCtx")
-    if not cmds.artUserPaintCtx("myPaintVertexCtx", exists=True):
-        cmds.artAttrPaintVertexCtx("myPaintVertexCtx", opacity=1.0)
     
+    """
+    標準のペイントツールを出さずに、ウィンドウの中での独自コンテキストを起動する
+    """
     
+    global ctx_name
+    ctx_name = "myPaintVertexCtx"
+    #頂点ペイントツールは存在するか
+    if cmds.artAttrPaintVertexCtx(ctx_name, exists=True):
+        #あったら削除
+        cmds.deleteUI(ctx_name, toolContext=True)
+        
+    #なかったら作成
+    cmds.artAttrPaintVertexCtx(ctx_name)
+    #ブラシの初期設定（不透明など）
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, opacity=1.0, value=1.0)
+        
+    #現在のアクティブツールとして設定
+    cmds.setToolTo(ctx_name)
+    print("info:ペイント頂点ツールが有効になりました。")
+    
+#ブラシ関数：サイズ調整
+def paint_brush_size(value):
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, radius=value)
 
 def scatter_paint_tool_ui():
+    
     #もしウィンドウがすでにあったら削除
     if cmds.window("scatter_paint_tool", exists=True):
         cmds.deleteUI("scatter_paint_tool")
     #ウィンドウ作成
     window = cmds.window("scatter_paint_tool", title="Scatter Paint Tool", widthHeight=(400,300))
     #レイアウト作成
-    cmds.columnLayout(adjustableColumn=True, rowSpacing=10, columnAlign="center")
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=10, columnAlign="right")
     
-    cmds.button(label="test" )
+    #カスタム頂点ペイントツールを起動する
+    cmds.button(label="ペイントモードを起動する", command=lambda *_:open_vex_paint_cot())
     
+    #----ブラシドロップダウン------------
+    cmds.frameLayout(label="ブラシ", collapsable=True, bgc=(0.35, 0.35, 0.35))
+    #ブラシ：サイズ変更スライダ―
+    cmds.floatSliderGrp(
+            "brushSizeSliderGrp",
+            label="ブラシサイズ：",
+            field=True,
+            min=0.1,
+            max=100.0,
+            value=10.0,
+            dragCommand=lambda value:paint_brush_size(value),
+            changeCommand=lambda value:paint_brush_size(value)
+        )
+    cmds.setParent("..")
+    #----ここまでframe--------------------------#
+    
+    cmds.setParent("..")
     cmds.showWindow(window)
 scatter_paint_tool_ui()

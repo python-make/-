@@ -1,5 +1,8 @@
 import maya.cmds as cmds
 
+global ctx_name
+ctx_name = "myPaintVertexCtx"
+
 #標準UIの起動を避けるための関数
 def open_vex_paint_cot():
     
@@ -8,24 +11,35 @@ def open_vex_paint_cot():
     """
     sel = cmds.ls(selection=True)    
         
-    global ctx_name
-    ctx_name = "myPaintVertexCtx"
-    #頂点ペイントツールは存在するか
+
+    #自作コンテキスト、ペイントツールが開かれていたら削除
     if cmds.artAttrPaintVertexCtx(ctx_name, exists=True):
-        #あったら削除
         cmds.deleteUI(ctx_name, toolContext=True)
+    
+    ##カラーセットの設定
+    #カラーセットを調べる
+    sets = cmds.polyColorSet(query=True, allColorSets=True)
+    #もしsetsが存在しないか、またはその中にsetsの中にcolorSet1が入っていなかったら
+    if not sets or "colorSet1" not in sets:
+        cmds.polyColorSet(create=True, clamped=False, representation="RGB", colorSet="colorSet1")
         
-    #なかったら作成
+    cmds.polyColorSet(currentColorSet=True, colorSet="colorSet1")
+    
+    #作成：箱
     cmds.artAttrPaintVertexCtx(ctx_name)
-    #ブラシの初期設定（不透明など）
-    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, opacity=1.0, value=1.0)
-        
-    #現在のアクティブツールとして設定
+    
+    #選択物がなかったら警告、あったら現在のアクティブツールとして設定
     if not sel:
         cmds.warning("パース上でオブジェクトを一つ以上選択してください。")
     else:
         cmds.setToolTo(ctx_name)
         print("info:ペイント頂点ツールが有効になりました。")
+        
+
+    #ブラシの初期設定（不透明など）：処理
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, opacity=1.0, value=1.0)
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, colorRGBValue=color)
+
     
 #ブラシ関数：サイズ調整
 def paint_brush_size(value):
@@ -41,15 +55,16 @@ def paint_brush_type_gaussian():
 def paint_brush_type_square():
     cmds.artAttrPaintVertexCtx(ctx_name, edit=True, stampProfile="square")
 
-#カラー選択コールバック
-def paint_brush_color():
-    color = cmds.colorEditor()
-    if color:
-        result = cmds.colorEditor(query=True, rgb=True)
-        cmds.colorSliderButtonGrp("colorSliderGrp", edit=True, rgb=result)
-        cmds.artAttrPaintVertexCtx(ctx_name, edit=True, color=result)
-
-
+def update_color(value):
+    global color
+    color = cmds.colorSliderGrp("colorSliderGrp", query=True, rgb=True)
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, color=color)
+    
+def paint_mode_replace():
+    color_value = update_color(value)
+    mode = "replace"
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, paintmode=mode, colorRGBValue=color_value)
+    
 #UI部分
 def scatter_paint_tool_ui():
     
@@ -59,7 +74,7 @@ def scatter_paint_tool_ui():
     #ウィンドウ作成
     window = cmds.window("scatter_paint_tool", title="Scatter Paint Tool", widthHeight=(400,300))
     #レイアウト作成
-    cmds.columnLayout(adjustableColumn=True, rowSpacing=10, columnAlign="right")
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=3, columnAlign="right")
     
     #ぺイントモードとテキスト
     cmds.rowLayout(
@@ -119,21 +134,33 @@ def scatter_paint_tool_ui():
             onCommand=lambda *_:paint_brush_type_square(),
             collection=collection
         )
-    
+    cmds.setParent("..")
+    cmds.setParent("..")
     cmds.setParent("..")
     #----ここまでbrushframe--------------------------#
     
     #----カラーフレ-ム----------------------------------#
     cmds.frameLayout(label="カラー", collapsable=True, bgc=(0.35, 0.35, 0.35))
+    
+    #ブラシを使えるようにする
+    collection = cmds.radioCollection("myPaintButton")
+    cmds.radioButton(
+            label="塗る",
+            onCommand=lambda *_:paint_mode_replace(),
+            collection=collection,
+            select=True
+        )
     #現在の色を保持する
-    bace_color = [1.0, 0.0, 0.0]
+    bace_color = [0.0, 0.0, 0.0]
     #カラー選択
-    color_select = cmds.attrColorSliderGrp(
+    color_select = cmds.colorSliderGrp(
             "colorSliderGrp",
             label="カラー値",
             rgb=bace_color,
             columnWidth=(60, 100),
+            changeCommand=lambda *_:update_color
         )
+    cmds.setParent("..")
     cmds.setParent("..")
     cmds.showWindow(window)
 scatter_paint_tool_ui()

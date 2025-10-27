@@ -6,7 +6,8 @@ def open_vex_paint_cot():
     """
     標準のペイントツールを出さずに、ウィンドウの中での独自コンテキストを起動する
     """
-    
+    sel = cmds.ls(selection=True)    
+        
     global ctx_name
     ctx_name = "myPaintVertexCtx"
     #頂点ペイントツールは存在するか
@@ -20,13 +21,36 @@ def open_vex_paint_cot():
     cmds.artAttrPaintVertexCtx(ctx_name, edit=True, opacity=1.0, value=1.0)
         
     #現在のアクティブツールとして設定
-    cmds.setToolTo(ctx_name)
-    print("info:ペイント頂点ツールが有効になりました。")
+    if not sel:
+        cmds.warning("パース上でオブジェクトを一つ以上選択してください。")
+    else:
+        cmds.setToolTo(ctx_name)
+        print("info:ペイント頂点ツールが有効になりました。")
     
 #ブラシ関数：サイズ調整
 def paint_brush_size(value):
     cmds.artAttrPaintVertexCtx(ctx_name, edit=True, radius=value)
 
+#ブラシ関数：不透明度
+def paint_brush_opacity(value):
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, opacity=value)
+
+def paint_brush_type_gaussian():
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, stampProfile="gaussian")
+
+def paint_brush_type_square():
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, stampProfile="square")
+
+#カラー選択コールバック
+def paint_brush_color():
+    color = cmds.colorEditor()
+    if color:
+        result = cmds.colorEditor(query=True, rgb=True)
+        cmds.colorSliderButtonGrp("colorSliderGrp", edit=True, rgb=result)
+        cmds.artAttrPaintVertexCtx(ctx_name, edit=True, color=result)
+
+
+#UI部分
 def scatter_paint_tool_ui():
     
     #もしウィンドウがすでにあったら削除
@@ -37,8 +61,16 @@ def scatter_paint_tool_ui():
     #レイアウト作成
     cmds.columnLayout(adjustableColumn=True, rowSpacing=10, columnAlign="right")
     
+    #ぺイントモードとテキスト
+    cmds.rowLayout(
+            numberOfColumns=2,
+            adjustableColumn=2
+        )
+    cmds.text(label="頂点カラー配置ツール             ")
+    
     #カスタム頂点ペイントツールを起動する
     cmds.button(label="ペイントモードを起動する", command=lambda *_:open_vex_paint_cot())
+    cmds.setParent("..")
     
     #----ブラシドロップダウン------------
     cmds.frameLayout(label="ブラシ", collapsable=True, bgc=(0.35, 0.35, 0.35))
@@ -53,9 +85,55 @@ def scatter_paint_tool_ui():
             dragCommand=lambda value:paint_brush_size(value),
             changeCommand=lambda value:paint_brush_size(value)
         )
-    cmds.setParent("..")
-    #----ここまでframe--------------------------#
+    cmds.floatSliderGrp(
+            "brushOpacitySliderGrp",
+            label="不透明度:",
+            field=True,
+            min=0.01,
+            max=1.00,
+            value=1.00,
+            dragCommand=lambda value:paint_brush_opacity(value),
+            changeCommand=lambda value:paint_brush_opacity(value)
+        )
+    cmds.separator(style="in")
+    form = cmds.formLayout()
+    row = cmds.rowLayout(numberOfColumns=3)
     
+    cmds.formLayout(form, e=True, attachForm=[(row, 'top', 0), (row, 'bottom', 0)], attachPosition=[(row, 'left', 50, 0)])
+    
+    #ラジオボタンのグループを作る
+    cmds.text(label="プロファイル：")
+    collection = cmds.radioCollection("myRadioCollection")
+    
+    #ガウスのラジオ
+    cmds.radioButton(
+            label="ガウス",
+            onCommand=lambda *_:paint_brush_type_gaussian(),
+            collection=collection,
+            select=True
+        )
+        
+    #四角のラジオ
+    cmds.radioButton(
+            label="四角",
+            onCommand=lambda *_:paint_brush_type_square(),
+            collection=collection
+        )
+    
+    cmds.setParent("..")
+    #----ここまでbrushframe--------------------------#
+    
+    #----カラーフレ-ム----------------------------------#
+    cmds.frameLayout(label="カラー", collapsable=True, bgc=(0.35, 0.35, 0.35))
+    #現在の色を保持する
+    bace_color = [1.0, 0.0, 0.0]
+    #カラー選択
+    color_select = cmds.attrColorSliderGrp(
+            "colorSliderGrp",
+            label="カラー値",
+            rgb=bace_color,
+            columnWidth=(60, 100),
+        )
     cmds.setParent("..")
     cmds.showWindow(window)
 scatter_paint_tool_ui()

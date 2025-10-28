@@ -1,0 +1,96 @@
+import maya.cmds as cmds
+
+global ctx_name
+ctx_name = "artAttrColorPerVertexContext"
+
+#----コールバック関数---------------------------------------#
+#ブラシ関数：サイズ調整
+def paint_brush_radius_size(value):
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, radius=value)
+
+#ブラシ関数：ブラシの下限
+def paint_brush_lowerradius_size(value):
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, lowerradius=value)
+    
+#色を設定する関数
+def color_set_custom(rgb):
+    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, colorRGBValue=rgb)
+#---------------------------------------------------------------------#
+#-----以下UI-----------------------------------------------------------#
+def scatter_paint_tool_ui():
+    #既存だったら削除
+    if cmds.window("scatter_paint_tool", exists=True):
+        cmds.deleteUI("scatter_paint_tool")
+    #ウィンドウ作成
+    window = cmds.window("scatter_paint_tool", title="scatter tool", widthHeight=(400,300))
+    #上部レイアウト作成
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=2, columnAlign="center")
+
+    #選択ツールに戻す
+    ##cmds.button(label="選択ツール", command=lambda *_:cmds.setToolTo("selectSuperContext"))
+    #----モード切替---------------------------------------##
+    cmds.text(label="まず最初に下のボタンを押し、ツールの確認を行ってください。")
+    #ツールの切り替え
+    cmds.rowLayout(
+            numberOfColumns=4,
+            adjustableColumn=2
+        )
+    #ツールをまず作成
+    cmds.text(label="モード切り替え:")
+    #ボタンでツール起動、またはスタートアップ時、頂点ペイントツールが起動されていない時に出す警告
+    def if_not_paint_tool_startup(*_):
+        sel = cmds.ls(selection=True)
+        if not sel:
+            cmds.warning("オブジェクトを選択した状態でないとペイントできません。")
+        try:
+            #現在アクティブなツールを調べる
+            ctx = cmds.currentCtx()
+            #もし現在アクティブなツールがペイントツールならすでにあると伝え、なかったらそのツールを開く
+            if ctx == ctx_name:
+                cmds.inViewMessage(assistMessage="すでに頂点カラーペイントツールになっています。", pos="topCenter", fade=True)
+            else:
+                cmds.setToolTo(ctx_name)
+                cmds.inViewMessage(assistMessage="頂点カラーペイントに切り替えました。", pos="topCenter", fade=True)
+        #エラーが出たら？？？[要確認]
+        except RuntimeError:
+            cmds.warning("頂点カラーペイントツールを起動する必要があります。")
+            cmds.confirmDialog(
+                    title="エラー",
+                    message="<b>頂点カラーペイントツールが起動されていません。</b><br>メッシュ表示>頂点カラーペイントツールを実行してください。",
+                    button=["OK"],
+                    defaultButton="OK",
+                    icon="warning"
+                )
+
+    cmds.button(label="頂点カラー ペイント ツール",annotation='<b>頂点カラーペイントツール</b><br>現在のツールをペイントツールにします。', command=lambda *_:if_not_paint_tool_startup())
+    cmds.button(label="□",annotation='<b>ツール設定</b><br>現在のツールの設定を開きます。', command=lambda *_:cmds.toolPropertyWindow())
+    cmds.setParent('..')
+    cmds.separator(style="in")
+    
+    #ドロップダウンできるバー:ブラシ
+    cmds.frameLayout(label="ブラシ", collapsable=True, bgc=(0.35, 0.35, 0.35))
+    #ブラシの上限スライダ―
+    cmds.floatSliderGrp(
+            "brushRadiusSlider",
+            label="半径(U): ",
+            field=True,
+            min=0.0001,
+            max=50.0000,
+            value=1.0000,
+            sliderStep=0.0001,
+            fieldStep=0.0001,
+            dragCommand=lambda value:paint_brush_radius_size(value),
+            changeCommand=lambda value:paint_brush_radius_size(value)
+        )
+    cmds.setParent("..") #ブラシ：frameLayoutのセットペアレント
+    cmds.button(label="赤", command=lambda *_:color_set_custom([1.0, 0.0, 0.0]))
+    cmds.button(label="青", command=lambda *_:color_set_custom([0.0, 1.0, 0.0]))
+    cmds.button(label="緑", command=lambda *_:color_set_custom([0.0, 0.0, 1.0]))
+
+    cmds.text(label="test")
+    #---------------------------------------------#
+    
+    #cmds.currentCtx()
+    cmds.showWindow(window)
+#----------------------------------------------------------------------------#
+scatter_paint_tool_ui()

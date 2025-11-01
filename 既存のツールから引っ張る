@@ -1,53 +1,6 @@
 import maya.cmds as cmds
 
-#コンテキストをグローバルで既存の頂点カラーペイントツールにする
-global ctx_name
-ctx_name = "artAttrColorPerVertexContext"
 
-#----コールバック関数---------------------------------------#
-#ボタンでツール起動、またはスタートアップ時、頂点ペイントツールが起動されていない時に出す警告
-def if_not_paint_tool_startup(*_):
-    sel = cmds.ls(selection=True)
-    if not sel:
-        cmds.warning("オブジェクトを選択した状態でないとペイントできません。")
-    try:
-        #現在アクティブなツールを調べる
-        ctx = cmds.currentCtx()
-        #もし現在アクティブなツールがペイントツールならすでにあると伝え、アクティブでなかったらそのツールを開く
-        if ctx == ctx_name:
-            cmds.inViewMessage(assistMessage="すでに頂点カラーペイントツールになっています。", pos="topCenter", fade=True)
-        else:
-            cmds.setToolTo(ctx_name)
-            cmds.inViewMessage(assistMessage="頂点カラーペイントに切り替えました。", pos="topCenter", fade=True)
-    #エラーが出たら？？？[要確認]
-    except RuntimeError:
-        cmds.warning("頂点カラーペイントツールを起動する必要があります。")
-        cmds.confirmDialog(
-                title="エラー",
-                message="<b>頂点カラーペイントツールが起動されていません。</b><br>メッシュ表示>頂点カラーペイントツールを実行してください。",
-                button=["OK"],
-                defaultButton="OK",
-                icon="warning"
-            )
-
-#色を設定する関数
-def color_set_custom(rgb):
-    cmds.artAttrPaintVertexCtx(ctx_name, edit=True, colorRGBValue=rgb)
-        
-#選択したコンポーネントのカラー削除関数
-def sel_remove_color():
-    sel = cmds.ls(selection=True,  flatten=True)
-    #もし選択されていなかったら
-    if not sel:
-        cmds.inViewMessage(
-                assistMessage="コンポーネントまたはオブジェクトが選択されていません。",
-                pos="topCenter",
-                fade=True
-            )
-    #選択、カラーもある状態だったら
-    else:
-        for c in sel:
-            cmds.polyColorPerVertex(c, remove=True)
 
 #選択したオブジェクトを登録する
 def set_obj_base_data():
@@ -63,217 +16,31 @@ def set_obj_base_data():
     else:
         if not sel:
             cmds.inViewMessage(assistMessage="オブジェクトが選択されていません。", pos="topCenter", fade=True)
+        
+#basedataについているカラーの情報をリストとして出す     
+def get_base_obj_Vertex_data():  
+    mesh = list(base_data.values())[0]
+    #最初のオブジェクトの頂点をリストにする
+    vtx_list = cmds.ls(mesh + ".vtx[*]", flatten=True)
+    #ベースオブジェクトの頂点カラー情報を辞書に入れる
+    vertex_color_data = {}
+    for vtx in vtx_list:
+        col = cmds.polyColorPerVertex(vtx, query=True, rgb=True)
+        if col:
+            vertex_color_data[vtx] = col
+    return vertex_color_data
 
-#---------------------------------------------------------------------#
-#-----以下UI-----------------------------------------------------------#
-def scatter_paint_tool_ui():
-    #既存だったら削除
-    if cmds.window("scatter_paint_tool", exists=True):
-        cmds.deleteUI("scatter_paint_tool")
-    #ウィンドウ作成
-    window = cmds.window("scatter_paint_tool", title="scatter tool", widthHeight=(425,700))
-    #上部レイアウト作成
-    cmds.scrollLayout(horizontalScrollBarThickness=3)
-    cmds.columnLayout(adjustableColumn=True, rowSpacing=1, columnAlign="center")
 
-    #選択ツールに戻す
-    ##cmds.button(label="選択ツール", command=lambda *_:cmds.setToolTo("selectSuperContext"))
-    #----モード切替---------------------------------------##
-    cmds.text(label="まず最初に下のボタンを押し、ツールの確認を行ってください。")
-    #ツールの切り替え
-    cmds.rowLayout(
-            numberOfColumns=4,
-            adjustableColumn=2
-        )
-    #ツールをまず作成
-    cmds.text(label="モード切り替え:")
-    cmds.button(label="頂点カラー ペイント ツール",annotation='<b>頂点カラーペイントツール</b><br>現在のツールをペイントツールにします。', command=lambda *_:if_not_paint_tool_startup())
-    cmds.button(label="□",annotation='<b>ツール設定</b><br>現在のツールの設定を開きます。', command=lambda *_:cmds.toolPropertyWindow())
-    cmds.setParent('..')
-    cmds.separator(height=15, style="in")
-    #----ブラシ--------------------------------------------#
-    #ドロップダウンできるバー:ブラシ
-    cmds.frameLayout(label="ブラシ", collapsable=True, bgc=(0.35, 0.35, 0.35))
-    #ブラシの上限スライダ―
-    cmds.floatSliderGrp(
-            "brushRadiusSlider",
-            label="半径(U): ",
-            field=True,
-            min=0.0001,
-            max=100.0000,
-            value=1.0000,
-            sliderStep=0.0001,
-            fieldStep=0.0001,
-            dragCommand=lambda value:cmds.artAttrPaintVertexCtx(ctx_name, edit=True, radius=value),
-            changeCommand=lambda value:cmds.artAttrPaintVertexCtx(ctx_name, edit=True, radius=value)
-        )
-    #ブラシの下限スライダ―
-    cmds.floatSliderGrp(
-            "brushLowerreRadiusSlider",
-            label="半径(L): ",
-            field=True,
-            min=0.0001,
-            max=100.0000,
-            value=1.0000,
-            sliderStep=0.0001,
-            fieldStep=0.0001,
-            dragCommand=lambda value:cmds.artAttrPaintVertexCtx(ctx_name, edit=True, lowerradius=value),
-            changeCommand=lambda value:cmds.artAttrPaintVertexCtx(ctx_name, edit=True, lowerradius=value)
-        )
-    #不透明度のブラシ
-    cmds.floatSliderGrp(
-            "brushOpacitySlider",
-            label="不透明度: ",
-            field=True,
-            min=0.0001,
-            max=1.0000,
-            value=1.0000,
-            sliderStep=0.0001,
-            fieldStep=0.0001,
-            dragCommand=lambda value:cmds.artAttrPaintVertexCtx(ctx_name, edit=True, opacity=value),
-            changeCommand=lambda value:cmds.artAttrPaintVertexCtx(ctx_name, edit=True, opacity=value)
-        )
-    cmds.separator(height=2, style="none", bgc=(0.23, 0.23, 0.23))#区切り
-    #----プロファイル---------------------------
-    cmds.flowLayout(numberOfChildren=3, columnSpacing=10)
-    #ボタンのグループを作る
-    cmds.text(label="             プロファイル：　")
-    #コレクションを決め、以下のラジオボタンを格納する
-    collection = cmds.radioCollection("myRadioCollection")
-    #のradioButton
-    cmds.radioButton(
-            label="ソリッド",
-            onCommand=lambda *_:cmds.artAttrPaintVertexCtx(ctx_name, edit=True, stampProfile="solid"),
-            collection=collection,
-            select=True
-        )
-    #四角のradioButton
-    cmds.radioButton(
-            label="四角",
-            onCommand=lambda *_:cmds.artAttrPaintVertexCtx(ctx_name, edit=True, stampProfile="square"),
-            collection=collection,
-        )
 
-    cmds.setParent("..") #ブラシflowLayout抜け
-    cmds.separator(height=2, style="none", bgc=(0.23, 0.23, 0.23))#区切り
-    cmds.setParent("..") #ブラシ：frameLayout抜け
-    #----カラー-------------------------------------------#
-    cmds.frameLayout(label="カラー", collapsable=True, bgc=(0.35, 0.35, 0.35))
-    cmds.separator(height=2, style="none", bgc=(0.23, 0.23, 0.23))#区切り
-    #----タイプ-------------------------------------
-    cmds.flowLayout(numberOfChildren=4, columnSpacing=9)
-    cmds.text(label="       　 　 　　ペイント：　")
-    #ブラシのコンポーネントタイプ
-    collection = cmds.radioCollection("myRadioBrushType")
-    cmds.radioButton(
-            label="頂点",
-            annotation="頂点選択にします。",
-            onCommand=lambda *_:cmds.artAttrPaintVertexCtx(ctx_name, edit=True, paintComponent=1),
-            select=True,
-        )
-    cmds.radioButton(
-            label="頂点フェース",
-            annotation="頂点フェース選択にします。",
-            onCommand=lambda *_:cmds.artAttrPaintVertexCtx(ctx_name, edit=True, paintComponent=2)
-        )
-    cmds.radioButton(
-            label="フェース",
-            annotation="フェース選択にします。",
-            onCommand=lambda *_:cmds.artAttrPaintVertexCtx(ctx_name, edit=True, paintComponent=3)
-        )
-    cmds.setParent("..") #タイプのflowLayout抜け
-    cmds.separator(style="in")
-    #カラー操作：塗る、消す
-    form = cmds.formLayout()
-    row = cmds.rowLayout(numberOfColumns=4)
-    #radioButtonを横に、真ん中にそろえる
-    cmds.formLayout(form, edit=True, attachForm=[(row, "top", 0),(row, "bottom", 0)], attachPosition=[(row, "left", 50, 0)])
-    
-    #ボタンのグループを作る
-    cmds.text(label="　除去操作：　")
-    #redo
-    cmds.button(label="選択", annotation="<b>選択ツール</b><br>任意のコンポーネント選択に</b><br>切り替えてください。", command=lambda *_:cmds.setToolTo("selectSuperContext"))
-    #undo
-    cmds.button(label="除去", annotation="選択したコンポーネントに使用されているカラーを除去します。", command=lambda *_:sel_remove_color())
-    cmds.iconTextButton(
-            style="iconOnly",
-            image1="help.png",  # Maya内部パスのアイコン
-            annotation="[Tabキー]長押しと併用するとスムーズにコンポーネント選択できます。",
-        )
-    cmds.setParent("..") #ブラシ：rowLayout抜け
-    cmds.setParent("..") #ブラシ：formLayout抜け
-    
-    cmds.separator(height=2, style="none", bgc=(0.23, 0.23, 0.23))#区切り
-    #カラー選択のレイアウト
-    cmds.flowLayout(
-            numberOfChildren=4,
-            columnSpacing=10
-        )
-    cmds.text(label="              カラー選択：")
-    cmds.button(label="赤", command=lambda *_:color_set_custom([1.0, 0.0, 0.0]))
-    cmds.button(label="緑", command=lambda *_:color_set_custom([0.0, 1.0, 0.0]))
-    cmds.button(label="青", command=lambda *_:color_set_custom([0.0, 0.0, 1.0]))
-    cmds.setParent("..") #カラー選択のrowLayout抜け
-    cmds.setParent("..") #カラー：frameLayout抜け
-    #---------------------------------------------#
-    cmds.frameLayout(label="random", bgc=(0.35, 0.35, 0.35))
-    cmds.text(label="ベースとなるオブジェクトを選択")
-    cmds.textFieldButtonGrp(
-            "myTextButtonBase",
-            label="ベース",
-            buttonLabel="登録",
-            buttonCommand=lambda *_:set_obj_base_data(),
-            columnOffset3=(0, 0, 0)
-        )
-    cmds.separator(style="in")
-    cmds.text("カラー範囲別に配置したいオブジェクトを登録")
-    cmds.rowLayout(
-            numberOfColumns=6
-        )
-    cmds.text(label="赤(R):")
-    cmds.checkBox(label="実行    ")
-    cmds.text(label="緑(G):")
-    cmds.checkBox(label="実行    ")
-    cmds.text(label="青(B):")
-    cmds.checkBox(label="実行")
-    cmds.setParent("..")
-    cmds.rowLayout(
-            numberOfColumns=3
-        )
-    cmds.textScrollList(
-            "myScrollRedList",
-            numberOfRows=8,
-            numberOfSelectedItems=True,
-            width=100
-        )
-    cmds.textScrollList(
-            "myScrollGreenList",
-            numberOfRows=8,
-            numberOfSelectedItems=True,
-            width=100
-        )
-    cmds.textScrollList(
-            "myScrollBlueList",
-            numberOfRows=8,
-            numberOfSelectedItems=True,
-            width=100
-        )
-    cmds.setParent("..")
-    cmds.rowLayout(
-            numberOfColumns=9   
-        )
-    cmds.button(label="+ 追加")
-    cmds.button(label="- 削除")
-    cmds.text(label=" ")
-    cmds.button(label="+ 追加")
-    cmds.button(label="- 削除")
-    cmds.text(label=" ")
-    cmds.button(label="+ 追加")
-    cmds.button(label="- 削除")
-    cmds.setParent("..") #rowLayout抜け
-    
-    #cmds.currentCtx()
-    cmds.setParent("..") #frameLayout抜け
-    cmds.showWindow(window)
-#----------------------------------------------------------------------------#
-scatter_paint_tool_ui()
+
+
+# UI仮作成
+if cmds.window("dropTestWin", exists=True):
+    cmds.deleteUI("dropTestWin")
+cmds.window("dropTestWin", title="Test")
+
+cmds.columnLayout(adjustableColumn=True)
+cmds.text(label="test")
+
+
+cmds.showWindow("dropTestWin")
